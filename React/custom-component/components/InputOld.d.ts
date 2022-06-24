@@ -1,0 +1,23 @@
+import React from "react";
+export declare type InputProps = {
+    inputRef?: React.Ref<HTMLInputElement>;
+    autoFocus?: boolean | undefined;
+    placeholder?: string;
+    value: string;
+    defaultValue?: string;
+    icon?: any;
+    type?: string;
+    onMouseEnter?: any;
+    onMouseLeave?: any;
+    onChange?: any;
+    onFocus?: any;
+    onBlur?: any;
+    onSubmit?: Function;
+    onClear?: Function;
+    canSubmit?: boolean;
+    loading?: boolean;
+    margin?: string;
+    padding?: string;
+    width?: string;
+};
+export default function Input({ inputRef, autoFocus, placeholder, value, defaultValue, icon, type, onMouseEnter, onMouseLeave, onChange, onFocus, onBlur, onSubmit, onClear, canSubmit, loading, margin, padding, width, }: InputProps): JSX.Element;
