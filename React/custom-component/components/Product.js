@@ -5,7 +5,7 @@ import styled from 'styled-components';
 import { lighten, darken } from 'polished';
 import Counter from './Counter.js';
 import AnimateHeight from 'react-animate-height';
-import { output } from '@sellout/utils/.dist/price';
+import { output } from '@test/utils/.dist/price';
 
 var Row = styled.div(templateObject_1 || (templateObject_1 = __makeTemplateObject(["\n  display: flex;\n  flex-direction: row;\n  justify-content: ", ";\n"], ["\n  display: flex;\n  flex-direction: row;\n  justify-content: ", ";\n"])), function (props) { return props.justify; });
 var Column = styled.div(templateObject_2 || (templateObject_2 = __makeTemplateObject(["\n  display: flex;\n  flex-direction: column;\n"], ["\n  display: flex;\n  flex-direction: column;\n"])));
@@ -17,9 +17,9 @@ var Description = styled.div(templateObject_7 || (templateObject_7 = __makeTempl
 var Ellipsis = styled.div(templateObject_8 || (templateObject_8 = __makeTemplateObject(["\n  display: -webkit-box;\n  -webkit-line-clamp: ", ";\n  -webkit-box-orient: ", ";\n  overflow: hidden;\n  text-overflow: ellipsis;\n"], ["\n  display: -webkit-box;\n  -webkit-line-clamp: ", ";\n  -webkit-box-orient: ", ";\n  overflow: hidden;\n  text-overflow: ellipsis;\n"])), function (props) { return props.active ? 3 : null; }, function (props) { return props.active ? 'vertical' : null; });
 var ShowMore = styled.div(templateObject_9 || (templateObject_9 = __makeTemplateObject(["\n  font-size: 1.2rem;\n  font-weight: 500;\n  line-height: 160%;\n  color: ", ";\n  transition: all 0.2s;\n\n  &:hover {\n    cursor: pointer;\n    color: ", ";\n  }\n\n  &:active {\n    color: ", ";\n  }\n"], ["\n  font-size: 1.2rem;\n  font-weight: 500;\n  line-height: 160%;\n  color: ", ";\n  transition: all 0.2s;\n\n  &:hover {\n    cursor: pointer;\n    color: ", ";\n  }\n\n  &:active {\n    color: ", ";\n  }\n"])), Colors.Orange, lighten(0.025, Colors.Orange), darken(0.025, Colors.Orange));
 function Product(_a) {
-    var _b = _a.title, title = _b === void 0 ? '' : _b, _c = _a.price, price = _c === void 0 ? 0 : _c, _d = _a.isRSVP, isRSVP = _d === void 0 ? false : _d, _e = _a.subtitle, subtitle = _e === void 0 ? '' : _e, _f = _a.description, description = _f === void 0 ? '' : _f, 
-    // Counter Props
-    value = _a.value, minValue = _a.minValue, maxValue = _a.maxValue, onIncrement = _a.onIncrement, onDecrement = _a.onDecrement;
+    var _b = _a.title, title = _b === void 0 ? '' : _b, _c = _a.price, price = _c === void 0 ? 0 : _c, _d = _a.isRSVP, isRSVP = _d === void 0 ? false : _d, _e = _a.subtitle, subtitle = _e === void 0 ? '' : _e, _f = _a.description, description = _f === void 0 ? '' : _f,
+        // Counter Props
+        value = _a.value, minValue = _a.minValue, maxValue = _a.maxValue, onIncrement = _a.onIncrement, onDecrement = _a.onDecrement;
     var _g = useState(false), showMore = _g[0], setShowMore = _g[1];
     var _h = useState(true), showEllipsis = _h[0], setShowEllipsis = _h[1];
     var descModified = description;
