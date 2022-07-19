@@ -1,0 +1,319 @@
+
+import React, { useState, useEffect } from 'react';
+import styled from 'styled-components';
+import { SeatsioSeatingChart } from '@seatsio/seatsio-react';
+import { SeatsioClient } from "seatsio";
+import { useSelector, useDispatch } from 'react-redux';
+import { PurchasePortalState } from "../redux/store";
+import EventUtil from '@app/models/.dist/utils/EventUtil';
+import { IEventGraphQL } from "@app/models/.dist/interfaces/IEvent";
+import * as OrderActions from "../redux/actions/order.actions";
+import ICreateOrderParams from "@app/models/.dist/interfaces/ICreateOrderParams";
+import OrderUtil from '@app/models/.dist/utils/OrderUtil';
+import TierUtil from "@app/models/.dist/utils/TierUtil";
+import SeatingPlanSecretCode from '../components/SeatingPlanSecretCode';
+import { Colors } from "@app/ui/build/Colors";
+import ITicketType from '@app/models/.dist/interfaces/ITicketType';
+import * as Price from '@app/utils/.dist/price';
+import * as AppActions from '../redux/actions/app.actions';
+import IEventPromotion, { EventPromotionTypeEnum } from '@app/models/.dist/interfaces/IEventPromotion';
+import * as Time from "@app/utils/.dist/time";
+import { useLazyQuery, useQuery } from "@apollo/react-hooks";
+import GET_PROMO_CODE from "@app/models/.dist/graphql/queries/promoCodeVerify.query";
+import { EPurchasePortalModes } from '@app/models/.dist/enums/EPurchasePortalModes';
+import QUERY_SEATING_KEYS from '@app/models/.dist/graphql/queries/seatingKeys.query';
+
+
+const Container = styled.div`
+  position: relative;
+  top: -50px;
+  background-color: ${Colors.White};
+  border-radius: 15px 15px 0 0;
+  overflow: hidden;
+  min-height: calc(100% - 160px);
+`;
+
+const Content = styled.div`
+  position: relative;
+  height: 100%;
+`;
+
+const SEATS_IO_CONTAINER = 'SEATS_IO_CONTAINER';
+
+type SelectTicketSeatsProps = {
+    event: Required<IEventGraphQL>;
+};
+
+const SelectTicketSeats: React.FC<SelectTicketSeatsProps> = ({ event }) => {
+    /** State **/
+    const [loading, setLoading] = React.useState(true);
+    const seatingId = EventUtil.seatingId({ _id: event._id as string });
+    const isOnSale = EventUtil.isOnSale(event);
+    const isRSVP = EventUtil.isRSVP(event)
+
+    const [showPromotionCodeInput, setShowPromotionCodeInput] = useState(false);
+    const [reRender, setReRender] = useState(false);
+
+    const { app: { mode, availablseatingCategories }, order: { createOrderParams } } = useSelector(
+        (state: PurchasePortalState) => state
+    );
+    const { promotionCode } = createOrderParams;
+
+    const [ticketCount, setTicketCount] = React.useState(0);
+    let available = [] as any;
+    // const { secretKey } = useSeatingKeysHook(event?.orgId as any);
+
+    const { data: secretKeyData, loading: secretKeyLoading } = useQuery(QUERY_SEATING_KEYS, {
+        variables: {
+            orgId: event?.orgId,
+        },
+    });
+
+    /** Actions **/
+    const dispatch = useDispatch();
+    const setCreateOrderParams = (orderParams: Partial<ICreateOrderParams>) =>
+        dispatch(OrderActions.setCreateOrderParams(orderParams));
+
+    const addTicketType = (ticketTypeId: string, tierId: string, seat: string) => {
+        dispatch(OrderActions.addTicketType(
+            event,
+            ticketTypeId,
+            tierId,
+            seat,
+        )
+        );
+        setTicketCount(ticketCount + 1)
+    }
+
+    const removeTicketType = (ticketTypeId: string, tierId: string, seat: string) => {
+        dispatch(OrderActions.removeTicketType(
+            event,
+            ticketTypeId,
+            tierId,
+            seat,
+        )
+        );
+
+        setTicketCount(ticketCount - 1)
+    }
+
+    const [getPromoTickets, { data, error }] = useLazyQuery(GET_PROMO_CODE, {
+        fetchPolicy: "network-only",
+    });
+
+    const ticket = data?.eventTickets
+    const now = Time.now();
+    const activeTickets = ticket && (ticket[0]?.active && ticket[0]?.remainingQty > 0 && ticket[0]?.startsAt < now && now < ticket[0]?.endsAt)
+
+    const isBoxOffice = mode === EPurchasePortalModes.BoxOffice;
+    if (isBoxOffice) {
+        available = event.ticketTypes
+            .filter(
+                (ticketType: ITicketType) => ticketType.remainingQty > 0
+            ).map(a => a.name)
+    } else {
+
+        const promotionCodeTicketsIds = event?.promotions?.filter((a) => a.type === "Unlock").reduce((cur: string[], promotion: IEventPromotion) => {
+            return [...cur, ...promotion.ticketTypeIds];
+        }, []);
+
+        const withoutPromotionCodeTickets = event?.ticketTypes
+            // Must be visibile
+            .filter(
+                (ticketType: ITicketType) => ticketType.visible
+            )
+            .filter(
+                (ticketType: ITicketType) => !promotionCodeTicketsIds.includes(ticketType._id as string)
+            ).map(a => a.name)
+        // const promotionCodeTickets = event?.ticketTypes
+        //   .filter(
+        //     (ticketType: ITicketType) => promotionCodeTicketsIds.includes(ticketType._id as string)
+        //   ).map(a => a.name)
+
+
+        const eventTickets = ticket && ticket[0]?.eventTickets
+        const activeTickets1 = ticket && ticket.filter((a: any) => a.active && a.remainingQty && a.startsAt < now && now < a.endsAt && (!isOnSale ? a?.promoType === EventPromotionTypeEnum.PreSale : a?.promoType === EventPromotionTypeEnum.Unlock))
+
+        const promotionCodeTickets = activeTickets1 && activeTickets1.reduce((cur: string[], a: any) => {
+            return [...cur, ...a.eventTickets];
+        }, []);
+
+        const visibleTickets = promotionCodeTickets && promotionCodeTickets.filter((i: any) => i.visible)
+        if (visibleTickets && visibleTickets.length > 0) {
+            const visibleTickets = promotionCodeTickets.filter((i: any) => i.visible).map((a: any) => a.name)
+            available = isOnSale ? [...withoutPromotionCodeTickets, ...visibleTickets] : [...visibleTickets];
+        } else {
+            available = [...withoutPromotionCodeTickets];
+        }
+        if (visibleTickets && visibleTickets.length === 0) {
+            available = [...availablseatingCategories];
+        }
+    }
+
+    /** Hooks **/
+    React.useEffect(() => {
+        setTimeout(() => setLoading(false), 350);
+        getPromoTickets({
+            variables: {
+                eventId: event._id,
+                promoCode: promotionCode,
+            },
+        })
+        const availablseatingCategories = available
+        dispatch(AppActions.setAvailableSeatingAction({ availablseatingCategories }))
+    }, []);
+
+    // React.useEffect(() => {
+    //   setReRender(true)
+    // }, [reRender]);
+
+    const pricing = event.ticketTypes.map((ticketType: ITicketType) => {
+        return {
+            category: ticketType.name,
+            price: isRSVP ? `$${ticketType.values}` : `$${Price.output(TierUtil.currentTier(ticketType)?.price, true)}`,
+        };
+    });
+
+    const maxSelectedObjects = event.ticketTypes.map((ticketType: ITicketType) => {
+        const useRemainingQty = ticketType.remainingQty < ticketType.purchaseLimit;
+        return {
+            category: ticketType.name,
+            quantity: useRemainingQty ? ticketType.remainingQty : ticketType.purchaseLimit,
+        };
+    });
+
+    /////////////// secret code //////////////
+
+    const checkPromotionCode = () => {
+        setLoading(true);
+        setTimeout(() => {
+            setLoading(false);
+            if (close) close();
+        }, 250);
+
+        getPromoTickets({
+            variables: {
+                eventId: event._id,
+                promoCode: promotionCode,
+            },
+        })
+        const availablseatingCategories = available
+        dispatch(AppActions.setAvailableSeatingAction({ availablseatingCategories }));
+        setShowPromotionCodeInput(!showPromotionCodeInput)
+    }
+
+    const updateHoldToken = async (holdToken: any, min: any) => {
+        if (secretKeyData.seating.secretKey) {
+            let seatsIOClient = new SeatsioClient(secretKeyData.seating.secretKey);
+            return await seatsIOClient.holdTokens.expiresInMinutes(holdToken, min);
+        }
+    }
+
+    const stopTime = (e: any) => {
+        const SeatingPlanTimer = 0
+        dispatch(AppActions.setSeatTimer({ SeatingPlanTimer }));
+        onSeatDeSelected();
+        updateHoldToken(e.chart?.holdToken, 15)
+    }
+
+    const onSeatSelected = () => {
+        sessionStorage.setItem("seatsSelect", "true");
+    }
+
+    const onSeatDeSelected = () => {
+        sessionStorage.setItem("seatsSelect", "false");
+    }
+
+
+    const onChangePromotionCode = (e: any) => {
+        const promotionCode: string = e.target.value
+        dispatch(
+            OrderActions.setCreateOrderParams({
+                promotionCode
+            })
+        )
+    }
+    const seatioToken = sessionStorage.getItem("seatsio");
+
+    React.useEffect(() => {
+        if (seatioToken) {
+            const holdToken1 = JSON.parse(seatioToken).holdToken
+            setCreateOrderParams({ holdToken: holdToken1 });
+        }
+    }, [seatioToken]);
+
+    let timerOnRefresh = 0 as number;
+    return (
+        <Container>
+            {mode === EPurchasePortalModes.Checkout && <SeatingPlanSecretCode title="Select tickets" showPromotionButton={isOnSale} checkPromotionCode={checkPromotionCode}
+                onChangePromotionCode={onChangePromotionCode} promotionCode={promotionCode} showPromotionCodeInput={showPromotionCodeInput} setShowPromotionCodeInput={setShowPromotionCodeInput} loading={loading} />}
+            <Content id={SEATS_IO_CONTAINER}>
+                {!secretKeyLoading && (
+                    <SeatsioSeatingChart
+                        id={SEATS_IO_CONTAINER}
+                        publicKey={event.seatingPublicKey}
+                        event={seatingId}
+                        availableCategories={available}
+                        pricing={pricing}
+                        maxSelectedObjects={maxSelectedObjects}
+                        session={'continue'}
+                        onSessionInitialized={(holdToken: any) => {
+                            timerOnRefresh = holdToken.expiresInSeconds as number
+                        }}
+                        onChartRendered={async (seatingChart: any) => {
+
+                            if (seatingChart.selectedObjects.length > 0) {
+                                const SeatingPlanTimer = Time.now() + timerOnRefresh
+                                dispatch(AppActions.setSeatTimer({ SeatingPlanTimer }));
+                            }
+                            if (seatingChart.selectedObjects.length === 0) {
+                                onSeatDeSelected();
+                                await updateHoldToken(seatingChart?.holdToken, 15)
+                            }
+                            setCreateOrderParams({ holdToken: seatingChart.holdToken });
+                        }}
+                        onObjectSelected={async (object: any) => {
+                            const ticketType = event?.ticketTypes.find(ticketType => ticketType.name === object.category.label);
+                            var seatsSelect = sessionStorage.getItem("seatsSelect");
+                            //
+                            if (ticketType) {
+                                if (object.chart.selectedObjects.length === 1 && (seatsSelect === "false" || !seatsSelect)) {
+
+                                    onSeatSelected();
+                                    let holdToken = await updateHoldToken(object?.chart?.holdToken, 5)
+                                    const SeatingPlanTimer = Time.now() + holdToken.expiresInSeconds
+                                    dispatch(AppActions.setSeatTimer({ SeatingPlanTimer }));
+                                }
+                                const tier = TierUtil.currentTier(ticketType);
+                                if (!tier) return null;
+                                addTicketType(ticketType._id as string, tier._id as string, object.id);
+                            }
+
+                        }}
+                        onObjectDeselected={async (object: any) => {
+                            const ticketType = event?.ticketTypes.find(ticketType => ticketType.name === object.category.label);
+                            if (ticketType) {
+                                if (object.chart.selectedObjects.length === 0) {
+                                    await stopTime(object)
+
+                                }
+                                const tier = TierUtil.currentTier(ticketType);
+                                if (!tier) return null;
+                                removeTicketType(ticketType._id as string, tier._id as string, object.id);
+                            }
+                        }}
+                        showFullScreenButton={false}
+                        showZoomOutButtonOnMobile={false}
+                        onHoldTokenExpired={() => {
+                            onSeatDeSelected();
+                        }
+                        }
+                    />
+                )}
+            </Content>
+        </Container>
+    );
+}
+
+export default SelectTicketSeats;
+
